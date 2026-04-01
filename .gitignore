@@ -27,3 +27,6 @@ Thumbs.db
 
 # Streamlit logs
 .streamlit/
+
+# Database / History Files
+history.json

@@ -55,32 +55,38 @@ Your briefing style:
 - Note competitor moves and funding events
 - Use plain business language, no jargon
 - Be specific: name companies, cite numbers, state implications
+- CRITICAL: For EVERY single bullet point you write, you MUST append a concise source citation at the end of the bullet point in parentheses (e.g., "[... text ...] (Source: TechCrunch)" or "(Source: [URL])").
 """
 
 # ── Format báo cáo bắt buộc (REPORT FORMAT) ─────────────────────
 REPORT_FORMAT = """
-Produce a daily intelligence briefing with EXACTLY these sections:
+Produce a daily intelligence briefing with EXACTLY these sections. 
+IMPORTANT RULE: Every single bullet point under ANY section must end with the source name or link in parentheses!
 
 ## Market trends
-2-4 bullet points on broader robotics market movements.
+2-4 bullet points on broader robotics market movements. (Must contain source!)
 
 ## Competitor & industry moves
-2-4 bullet points on specific company actions, product launches, partnerships.
+2-4 bullet points on specific company actions, product launches, partnerships. (Must contain source!)
 
 ## Funding & M&A
-1-3 bullet points on investment rounds, acquisitions, exits.
+1-3 bullet points on investment rounds, acquisitions, exits. (Must contain source!)
 (Write "Nothing significant today." if none found.)
 
 ## Southeast Asia & Vietnam spotlight
-2-3 bullet points specifically relevant to SEA or Vietnam.
+2-3 bullet points specifically relevant to SEA or Vietnam. (Must contain source!)
 (Write "No SEA-specific news today." if none found.)
+
+## Impact Analysis: New developments vs Previous report
+1-2 bullet points: Compare the NEW articles against the PREVIOUS intelligence report provided in context. Do these new articles reinforce existing trends, contradict them, or represent completely new shifts?
 
 ## Strategic implications for VinDynamic
 3 bullet points: what does today's news mean for VinDynamic specifically?
-Be direct and actionable.
+Be direct and actionable. (Must contain source tracing back to the news!)
 
 ## Top 3 articles to read in full
-List the 3 most important articles with their URLs.
+List the 3 most important articles. 
+FORMAT RULE: Provide the Title on one line, the URL on the next line, and then start a NEW line starting with '**Why:**' to explain its importance. Do NOT put 'Why:' on the same line as the URL.
 
 End with a one-sentence "headline of the day" that captures the single
 most important development.

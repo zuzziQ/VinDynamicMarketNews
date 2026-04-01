@@ -1,10 +1,11 @@
 import streamlit as st
 import io
 import time
+import json
+import os
 from datetime import date
 import feedparser
 from bs4 import BeautifulSoup
-import pandas as pd
 import pandas as pd
 import anthropic
 import markdown
@@ -22,17 +23,44 @@ st.set_page_config(
 
 # --- CORE LOGIC ---
 BATCH_SIZE = 5
+HISTORY_FILE = "history.json"
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {"links": [], "last_report": ""}
+    return {"links": [], "last_report": ""}
+
+def save_history(links_to_add, report_text):
+    hist = load_history()
+    hist["links"].extend(links_to_add)
+    # Deduplicate links to prevent massive file growth
+    hist["links"] = list(set(hist["links"]))
+    # Keep only the last 2000 links
+    if len(hist["links"]) > 2000:
+        hist["links"] = hist["links"][-2000:]
+    hist["last_report"] = report_text
+    
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(hist, f, ensure_ascii=False, indent=2)
 
 def generate_pdf(md_text):
     """
     Đúc chuỗi Markdown sang File PDF Nhị Phân (Binary) bằng HTML Proxy
     """
+    # Fix unicode issues before generating PDF (smart quotes, dashes turning into box/mojibake)
+    md_text = md_text.replace("‘", "'").replace("’", "'").replace("“", '"').replace("”", '"').replace("–", "-").replace("—", "-")
+    
     html_content = markdown.markdown(md_text, extensions=['tables'])
     
     # CSS Trắng đen, Tiêu chuẩn Báo cáo Quản trị Doanh nghiệp
     pdf_html = f"""
     <html>
     <head>
+    <meta charset="UTF-8">
     <style>
         @page {{ margin: 2cm; }}
         body {{ font-family: Helvetica, Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #333; }}
@@ -83,7 +111,7 @@ def filter_by_keywords(text, keyword_list):
             return True
     return False
 
-def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None):
+def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None, previous_links=set()):
     all_articles = []
     total_urls = len(rss_urls)
     
@@ -97,6 +125,12 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None):
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries:
+                link = entry.get("link", "")
+                
+                # OPTIMIZE TOKENS: Bỏ qua bài đã có trong History (chỉ duyệt bài mới nhất / Delta)
+                if link and (link in previous_links):
+                    continue
+                
                 title = entry.get("title", "")
                 summary_raw = entry.get("summary", "")
                 summary_clean = clean_html(summary_raw)
@@ -105,7 +139,7 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None):
                 if filter_by_keywords(title, keyword_list) or filter_by_keywords(summary_clean, keyword_list):
                     all_articles.append({
                         "title": title,
-                        "link": entry.link,
+                        "link": link,
                         "published": entry.get("published", ""),
                         "summary": summary_clean,
                         "feed_source": url
@@ -113,7 +147,7 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None):
         except Exception as e:
             st.error(f"Error fetching feed {url}: {e}")
             
-    # Deduplicate
+    # Deduplicate internally within this batch
     unique_links = set()
     deduped_articles = []
     for article in all_articles:
@@ -126,13 +160,13 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None):
         
     return deduped_articles
 
-def synthesize_batch(api_key, batch_index, batch_data, persona, report_format, use_memory=False, past_briefings=[]):
+def synthesize_batch(api_key, batch_index, batch_data, persona, report_format, use_memory=True, past_report=""):
     """
     Data Serialization and Direct Communication with Claude AI.
     """
     today_str = date.today().strftime("%B %d, %Y")
     
-    # 1. Serialization of raw data
+    # 1. Serialization of raw data (Only NEW articles)
     raw_content = ""
     for idx, art in enumerate(batch_data):
         raw_content += f"[{idx+1}] TITLE: {art['title']}\n"
@@ -142,44 +176,47 @@ def synthesize_batch(api_key, batch_index, batch_data, persona, report_format, u
         
     # 2. Process Memory Context
     memory_block = ""
-    if use_memory and past_briefings:
+    if use_memory and past_report:
         memory_block = (
-            "CONTEXT FROM PREVIOUS BRIEFINGS (last 5 days):\n"
-            + "\n\n---\n\n".join(past_briefings[-5:])
-            + "\n\nFlag any ESCALATING TRENDS or RECURRING THEMES "
-              "you notice compared to previous days.\n\n"
+            "CONTEXT FROM PREVIOUS INTELLIGENCE REPORT:\n"
+            f"{past_report}\n\n"
+            "INSTRUCTION FOR IMPACT ANALYSIS: You must evaluate how the NEW articles below relate to, reinforce, or break the trends mentioned in the PREVIOUS report above.\n\n"
+            "---\n\n"
         )
         
     # 3. Final Prompt Structure (User Prompt + Input Data)
-    prompt_content = f"{memory_block}Today is {today_str}. Here are today's matched articles:\n\n{raw_content}\n\n{report_format}"
+    prompt_content = f"{memory_block}Today is {today_str}. Here are the totally NEW, unseen articles:\n\n{raw_content}\n\n{report_format}"
 
-    # --- API CONNECTION (MOCK OR REAL) ---
+    # --- API CONNECTION ---
     if not api_key:
         time.sleep(2) # Simulate Anthropic delay
         
         mock_output_md = f"""## Market trends
-* (Mock) The industrial automation sector continues to rise with new AMR deployments.
-* Factories in Europe and China are doubling their budget for flexible robotic arms.
+* (Mock) The industrial automation sector continues to rise with new AMR deployments. (Source: The Robot Report)
+* Factories in Europe and China are doubling their budget for flexible robotic arms. (Source: Asian Tech)
 
 ## Competitor & industry moves
-* (Mock Data) Universal Robots announced a new generation of cobots with 4D micro-force sensors.
-* KUKA strengthens European supply chains by acquiring X-Sensors.
+* (Mock Data) Universal Robots announced a new generation of cobots with 4D micro-force sensors. (Source: Robotics Tomorrow)
+* KUKA strengthens European supply chains by acquiring X-Sensors. (Source: IE3)
 
 ## Funding & M&A
-* 🇺🇸 Softbank poured $500M USD into Boston Dynamics' domestic Humanoid project.
+* 🇺🇸 Softbank poured $500M USD into Boston Dynamics' domestic Humanoid project. (Source: TechCrunch)
 
 ## Southeast Asia & Vietnam spotlight
-* 🇻🇳 Vinamilk and Samsung Bắc Ninh open a mega Logistics plant utilizing robotic arms.
-* 🇸🇬 The Singaporean Government established a 100M SGD fund for Deep-Tech Automation startups.
+* 🇻🇳 Vinamilk and Samsung Bắc Ninh open a mega Logistics plant utilizing robotic arms. (Source: VNExpress)
+* 🇸🇬 The Singaporean Government established a 100M SGD fund for Deep-Tech Automation startups. (Source: E27)
+
+## Impact Analysis: New developments vs Previous report
+* The new investment in Boston Dynamics directly reinforces the humanoid scaling trend reported previously, fast-tracking commercial deployment.
+* Universal Robots' new 4D sensor cobot might challenge the existing market dominance mentioned in our last report.
 
 ## Strategic implications for VinDynamic
-* **Opportunity 1:** Electronics giants (Samsung) in VN are desperate for automated chip-handling solutions. VinDynamic should propose a Pilot package integrating soft grippers to secure a 100K$ contract.
-* **Threat:** Manufacturers from Guangdong (CN) are entering the SEA market, slashing AGV prices by 15%.
-* **Action:** Shift positioning. Reduce hardware competition, focus heavily on AI Controllers (Navigational Intelligence).
+* **Opportunity 1:** Electronics giants (Samsung) in VN are desperate for automated chip-handling solutions. VinDynamic should propose a Pilot package integrating soft grippers to secure a 100K$ contract. (Source: Context linking to VNExpress)
+* **Threat:** Manufacturers from Guangdong (CN) are entering the SEA market, slashing AGV prices by 15%. (Source: General trend)
+* **Action:** Shift positioning. Reduce hardware competition, focus heavily on AI Controllers (Navigational Intelligence). (Source: Strategic assumption)
 
 ## Top 3 articles to read in full
 1. [Robotics News 1]({batch_data[0]['link']}) - {batch_data[0]['title']}
-2. [(Mock Data Hidden) Pending remaining titles](#) - ...
 
 ***Headline of the day***: A pivotal day for the market as multi-million dollar investments pour heavily into the Humanoid ecosystem, opening a bright door for VinDynamic to exploit the soft-gripper logistics chain.
 """
@@ -194,7 +231,7 @@ def synthesize_batch(api_key, batch_index, batch_data, persona, report_format, u
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
                 model=st.session_state.get("selected_model", "claude-sonnet-4-6"),
-                max_tokens=2500,
+                max_tokens=3000,
                 system=persona,
                 messages=[{"role": "user", "content": prompt_content}]
             )
@@ -213,15 +250,14 @@ def synthesize_batch(api_key, batch_index, batch_data, persona, report_format, u
 # --- UI BUILDING ---
 
 def main():
-    # --- HEADER & SETTINGS (TOP RIGHT) ---
     colTitle, colSettings = st.columns([8, 2])
     
     with colTitle:
         st.title("🤖 VinDynamic Intelligence Agent")
-        st.markdown("Specialized AI Architecture for Market Intelligence. 🧠 Featuring **Context Memory** & **Strict Report Formatting**.")
+        st.markdown("Specialized AI Architecture for Market Intelligence. 🧠 Featuring **Tokens Optimization (Delta Tracking)** & **Context Memory**.")
         
     with colSettings:
-        st.write("") # Vertical alignment
+        st.write("") 
         st.write("") 
         with st.popover("⚙️ Settings (Keys)", use_container_width=True):
             st.markdown("**Platform Credentials**")
@@ -229,20 +265,17 @@ def main():
             api_key = st.text_input("🔑 Anthropic API Key", type="password", help="Được bảo mật cục bộ ở file .env dưới máy.", value=default_key)
             if st.button("💾 Lưu vĩnh viễn Key (lần sau tự nhận)", use_container_width=True):
                 if api_key:
-                    import os
                     from dotenv import set_key
                     if not os.path.exists(".env"):
                         open(".env", "w").close()
                     set_key(".env", "ANTHROPIC_API_KEY", api_key)
-                    # Giữ chốt Key vào RAM hiện tại mà không cần Restart nóng
                     config.ANTHROPIC_API_KEY = api_key
-                    st.success("✅ Đã đóng băng Key vào ổ cứng hệ thống (.env) an toàn 100%!")
+                    st.success("✅ Đã đóng băng Key vào ổ cứng an toàn 100%!")
                 else:
                     st.warning("Xin hãy dán API Key trước khi bấm Lưu.")
             
             st.divider()
             st.markdown("**Core Parameters**")
-            # Cập nhật danh sách model thực tế từ API trả về của User Org
             available_models = [
                 "claude-sonnet-4-6", 
                 "claude-opus-4-6", 
@@ -260,9 +293,9 @@ def main():
             st.info("💡 Running in MOCK mode. Add your Anthropic API Key in the top-right Settings to enable Claude.")
 
         st.subheader("🧠 Memory Hooks")
-        use_memory = st.toggle("Inject Past 5 Days Context?", value=True)
+        use_memory = st.toggle("Inject Previous Report Context?", value=True)
         if use_memory:
-            st.caption("🔍 Claude will cross-reference past reports to detect escalating competitor trends.")
+            st.caption("🔍 Claude will cross-reference the PREVIOUS report to detect escalating trends or perform Impact Analysis.")
 
         st.subheader("📰 RSS Sources (Daily Scan)")
         default_rss = "\n".join(config.RSS_FEEDS)
@@ -283,6 +316,12 @@ def main():
         except:
             default_format = "Placeholder Format. Please refresh."
         format_input = st.text_area("Strict Output Format (Markdown)", value=default_format, height=250)
+        
+        # Thêm nút Clear History để quét lại từ đầu
+        if st.button("🗑️ Xóa bộ nhớ Lịch sử (Quét lại toàn bộ bài)"):
+            if os.path.exists(HISTORY_FILE):
+                os.remove(HISTORY_FILE)
+            st.success("Đã xóa bộ nhớ. Trạng thái pipeline sẽ phân loại mọi nguồn như mới.")
 
     # 2. MAIN AREA: Execution
     st.divider()
@@ -291,8 +330,9 @@ def main():
     with col1:
         start_btn = st.button("🚀 Run System Pipeline", type="primary", use_container_width=True)
         
+    # --- KHỐI THỰC THI (Chỉ chạy 1 lần khi ấn nút) ---
     if start_btn:
-        st.info("Loading Agent Pipeline...")
+        st.info("Initiating Agent Pipeline...")
         
         progress_bar = st.progress(0.0)
         status_text = st.empty()
@@ -301,35 +341,33 @@ def main():
             progress_bar.progress(ratio)
             status_text.text(text)
         
-        st.subheader("Tier 1 & 2: Data Pipeline (Web Fetching & Prefiltering)")
-        with st.spinner("Parsing RSS feeds & matching keywords via BeautifulSoup..."):
-            articles_raw = fetch_rss_feeds(rss_urls, keyword_list, progress_callback=update_progress)
+        st.subheader("Tier 1 & 2: Data Pipeline (Fetching NEW Articles)")
+        
+        with st.spinner("Parsing RSS feeds, matching keywords & Filtering Old Articles..."):
+            history_data = load_history()
+            previous_links = set(history_data.get("links", []))
+            past_report = history_data.get("last_report", "")
             
-            # Use the user-defined limit instead of hardcoding 10
+            # Fetch CHỈ BÀI MỚI (chưa xuất hiện trong previous_links)
+            articles_raw = fetch_rss_feeds(rss_urls, keyword_list, progress_callback=update_progress, previous_links=previous_links)
+            
             limit = st.session_state.get("max_articles_limit", 50)
             articles = articles_raw[:limit]
-        
-        st.success(f"Parsing complete! Successfully captured **{len(articles_raw)}** articles related to SEA Robotics. Filtering down to the top {len(articles)} for AI processing.")
-        
-        # Display Dataframe
-        if len(articles) > 0:
-            df = pd.DataFrame(articles)[['title', 'feed_source', 'link']]
-            st.dataframe(df, use_container_width=True, hide_index=True)
             
-            # AI Inference Stage
+            # Lưu các thông số hiển thị ra session_state
+            st.session_state['total_fetched'] = len(articles_raw)
+            st.session_state['articles_passed'] = len(articles)
+        
+        if len(articles) > 0:
+            st.session_state['pipeline_success'] = True
+            
+            df = pd.DataFrame(articles)[['title', 'feed_source', 'link']]
+            st.session_state['pipeline_df'] = df
+            
             st.subheader("Tier 3: Core Intelligence (Claude Synthesis)")
             
-            aggregated_reports = []
-            total_articles = len(articles)
-            
-            # Simulated previous memory since we don't have a DB hooked up yet
-            past_mock_briefings = [
-                 "[Pre-DB Memory] 2 days ago (Mar 29): Notable deployment of AI Vision Cameras in VN garment factories.",
-                 "[Pre-DB Memory] Yesterday (Mar 30): Logistics M&A is heating up with the Alpha acquisition."
-            ]
-            
             with st.status("Aggregating Context & Data -> Requesting comprehensive report from Claude...", expanded=True) as status:
-                st.write(f"Serializing all {total_articles} Articles -> Injecting Context & Format -> Dispatching Payload...")
+                st.write(f"Serializing {len(articles)} NEW Articles -> Injecting Previous Report Context -> Dispatching Payload...")
                 
                 result = synthesize_batch(
                     api_key=api_key, 
@@ -338,37 +376,71 @@ def main():
                     persona=persona_input, 
                     report_format=format_input, 
                     use_memory=use_memory, 
-                    past_briefings=past_mock_briefings
+                    past_report=past_report
                 )
-                
-                status.update(label="Claude completed the Daily Intelligence Briefing! ✅", state="complete", expanded=False)
+                status.update(label="Claude completed the Delta Intelligence Briefing! ✅", state="complete", expanded=False)
             
-            # Final Output Presentation
-            st.subheader("📊 Tier 4: Final Intelligence Briefing (Markdown)")
-            
-            st.markdown(f"#### 📂 Mega-Report Synthesized from {result['articles_processed']} matching articles:")
-            st.markdown(result['report_content'])
-            
-            st.divider()
-            st.subheader("📥 Export Intelligence Report")
-            
-            # Khởi tạo quá trình vẽ file PDF
             with st.spinner("Đang hóa hơi Markdown để ép mặt chữ dập File PDF..."):
                 pdf_bytes = generate_pdf(result['report_content'])
-                
-            if pdf_bytes:
-                st.download_button(
-                    label="📄 Download Report as PDF",
-                    data=pdf_bytes,
-                    file_name=f"VinDynamic_Intelligence_Report_{date.today().strftime('%Y-%m-%d')}.pdf",
-                    mime="application/pdf",
-                    type="primary"
-                )
-                st.balloons()
-            else:
-                st.error("🚨 PDF Generation Failed. The system could not compile the physical file.")
+            
+            st.session_state['articles_processed'] = result['articles_processed']
+            st.session_state['report_content'] = result['report_content']
+            st.session_state['pdf_bytes'] = pdf_bytes
+            
+            # Lưu lịch sử (URL mới + Report mới) để dùng chống trùng lặp cho những lần click Run sắp tới
+            new_links = [art['link'] for art in articles]
+            save_history(new_links, result['report_content'])
+            
         else:
-            st.warning("No relevant articles passed the keyword filter today. Consider relaxing your constraints!")
+            # Không có bài nào mới
+            st.session_state['pipeline_success'] = True
+            st.session_state['pipeline_df'] = pd.DataFrame()
+            st.session_state['report_content'] = "⚠️ **Không có tin tức nào mới (Delta = 0)** kể từ đợt báo cáo lần trước. Toàn bộ các bài trên RSS đều đã được phân tích. Hãy thử lại vào ngày mai hoặc nới lỏng từ khóa mục tiêu!"
+            st.session_state['pdf_bytes'] = None
+
+    # --- KHỐI GIAO DIỆN HIỂN THỊ (Bền vững, không bị ẩn khi Download) ---
+    if st.session_state.get('pipeline_success'):
+        # 1. Pipeline Logs Info
+        st.subheader("Tier 1 & 2: Data Pipeline Results")
+        if st.session_state.get('articles_passed', 0) > 0:
+             st.success(f"✅ Lọc thành công bài mới (tránh trùng lặp triệt để để Tối Ưu Token)! Thu thập được **{st.session_state['total_fetched']}** tin mới chưa từng xuất hiện. Phân tích top **{st.session_state['articles_passed']}** tin nhắn.")
+        else:
+             st.info("✅ Pipeline hoạt động: Đã quét nhưng mọi bài báo đều là bài cũ từng phân tích rồi. Cắt luồng lên LLM để bảo toàn Token.")
+             
+        # 2. DataFrame (Raw Data)
+        if st.session_state.get('pipeline_df') is not None and not st.session_state['pipeline_df'].empty:
+            st.dataframe(st.session_state['pipeline_df'], use_container_width=True, hide_index=True)
+            
+        # 3. Report Display
+        st.divider()
+        st.subheader("📊 Tier 3 & 4: Final Intelligence Briefing (Markdown)")
+        if st.session_state.get('articles_processed', 0) > 0:
+            st.markdown(f"#### 📂 Báo cáo Delta (Chỉ tính cước token cho đúng {st.session_state['articles_processed']} diễn biến mới!):")
+        st.markdown(st.session_state.get('report_content', ''))
+        
+        # 4. Download Feature
+        st.divider()
+        st.subheader("📥 Export Intelligence Report")
+        
+        if st.session_state.get('pdf_bytes'):
+            st.download_button(
+                label="📄 Download Report as PDF",
+                data=st.session_state['pdf_bytes'],
+                file_name=f"VinDynamic_Delta_Report_{date.today().strftime('%Y-%m-%d')}.pdf",
+                mime="application/pdf",
+                type="primary"
+            )
+            
+            if st.button("🔄 Clear Output"):
+                st.session_state['pipeline_success'] = False
+                st.rerun()
+        elif st.session_state.get('pipeline_df') is None or st.session_state['pipeline_df'].empty:
+            st.warning("Không có dữ liệu mới để xuất file PDF.")
+            if st.button("🔄 Clear Output"):
+                st.session_state['pipeline_success'] = False
+                st.rerun()
+        else:
+            st.error("🚨 PDF Generation Failed. The system could not compile the physical file.")
 
 if __name__ == "__main__":
     main()
