@@ -63,9 +63,10 @@ INSTRUCTIONS:
 1. Merge the `<new_summaries>` into the existing `<old_kb>`. Add new themes if needed.
 2. If the info already exists, merge the new details but DO NOT DUPLICATE.
 3. IMPORTANT HIGHLIGHTING: Prefix any new information from today with `[NEW]` and format its text in **bold**.
-4. GARBAGE COLLECTION: Ensure the total KB never exceeds 1000-1500 words. Condense stale, older news to 1-2 sentences. 
-5. LINKING: You MUST preserve the Markdown Links `[Domain Name](URL)` from `<new_summaries>` exactly as they are. This is very important. 
-6. Output ONLY the finalized Markdown content (starting with themes and bullets).
+4. CHRONOLOGICAL SORTING: Under every theme, you MUST sort the bullet points chronologically from NEWEST to OLDEST based on the article date. Put today's/newest news at the top.
+5. GARBAGE COLLECTION: Ensure the total KB never exceeds 1000-1500 words. Condense stale, older news to 1-2 sentences. 
+6. LINKING: You MUST preserve the Markdown Links `[Domain Name](URL)` from `<new_summaries>` exactly as they are. This is very important. 
+7. Output ONLY the finalized Markdown content (starting with themes and bullets).
 """
 
 # ── PROMPT 3: STAGE 3 (ANALYST REPORT) ──────────
@@ -97,8 +98,9 @@ Produce EXACTLY these sections based on the knowledge base texts.
 ---
 
 CRITICAL FORMATTING RULES:
-1. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL (including the domain and date) provided in the Knowledge Base exactly as an inline link. 
-2. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. 
+1. CHRONOLOGICAL ORDER: Within each section, sort the bullet points from NEWEST to OLDEST based on the dates provided.
+2. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL (including the domain and date) provided in the Knowledge Base exactly as an inline link. 
+3. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. 
    Example format:
    * Universal Robots has just announced a new 4D sensor cobot variant ([therobotreport.com - Mar 30](https://www.therobotreport.com/link...)).
 

@@ -354,11 +354,16 @@ def main():
             st.session_state['kb_content'] = load_kb()
 
     # --- TABS HIỂN THỊ GIAO DIỆN (LƯU PERSISTENT) ---
-    if st.session_state.get('pipeline_success'):
-        tab1, tab2, tab3 = st.tabs(["📊 Báo Cáo Phân Tích (Final Report) ", "🧠 Trí Não Tri Thức (Knowledge Base) ", "📂 Dữ Liệu Raw Hút Về"])
+    st.divider()
+    tab1, tab2, tab3 = st.tabs(["🧠 Trí Não Tri Thức (Knowledge Base) ", "📊 Báo Cáo Phân Tích (Final Report) ", "📂 Dữ Liệu Raw Hút Về"])
+    
+    with tab1:
+        st.info("Bản nén lưu trữ dung lượng nhẹ trên máy để LLM nhớ lâu đài không tốn tiền API. Mới nhất được đẩy lên đầu tiên (Sắp xếp thời gian).")
+        st.markdown(st.session_state.get('kb_content', load_kb()))
         
-        with tab1:
-            st.markdown(st.session_state.get('report_content', 'Chưa có thông tin.'))
+    with tab2:
+        if st.session_state.get('report_content'):
+            st.markdown(st.session_state.get('report_content'))
             st.divider()
             if st.session_state.get('pdf_bytes'):
                 st.download_button(
@@ -368,17 +373,15 @@ def main():
                     mime="application/pdf",
                     type="primary"
                 )
-        
-        with tab2:
-            st.info("Bản nén lưu trữ dung lượng nhẹ trên máy để LLM nhớ lâu dài không tốn tiền API. Có bôi đậm [NEW] cho tin tức mới.")
-            st.markdown(st.session_state.get('kb_content', load_kb()))
+        else:
+            st.write("Chưa có báo cáo nào được tạo ấn bản trong phiên dùng này. Hãy chạy Pipeline để sinh Báo cáo mới.")
             
-        with tab3:
-            if st.session_state.get('pipeline_df') is not None and not st.session_state['pipeline_df'].empty:
-                st.success(f"Quét được {len(st.session_state['pipeline_df'])} tin bài mới thuộc nhiều mảng khác nhau.")
-                st.dataframe(st.session_state['pipeline_df'], use_container_width=True, hide_index=True)
-            else:
-                st.write("Không scan được bài báo mới.")
+    with tab3:
+        if st.session_state.get('pipeline_success') and st.session_state.get('pipeline_df') is not None and not st.session_state['pipeline_df'].empty:
+            st.success(f"Quét được {len(st.session_state['pipeline_df'])} tin bài mới thuộc nhiều mảng khác nhau.")
+            st.dataframe(st.session_state['pipeline_df'], use_container_width=True, hide_index=True)
+        else:
+            st.write("Chưa scan được bài báo mới.")
 
 if __name__ == "__main__":
     main()
