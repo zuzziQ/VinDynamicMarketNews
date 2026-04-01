@@ -42,7 +42,7 @@ You are a highly analytical AI Data Engine. Your task is to process incoming raw
 INSTRUCTIONS:
 1. Group the provided items logically by sub-themes (e.g., "Hardware Innovations", "Corporate Funding & M&A", "Regional Deployments").
 2. Write extreme, compressed bullet points capturing ONLY the hard facts, numbers, and entities. Remove all fluff.
-3. Every single point MUST end with the short domain name or feed source of the article in parentheses. (e.g., `(The Robot Report)`).
+3. Every single point MUST end with the short domain name hyperlinked to the original article URL. Example: `([The Robot Report](https://therobotreport.com/...))`.
 4. Do not include greetings or conclusions. Just return standard Markdown.
 """
 
@@ -64,7 +64,8 @@ INSTRUCTIONS:
 2. If the info already exists, merge the new details but DO NOT DUPLICATE.
 3. IMPORTANT HIGHLIGHTING: Prefix any new information from today with `[NEW]` and format its text in **bold**.
 4. GARBAGE COLLECTION: Ensure the total KB never exceeds 1000-1500 words. Condense stale, older news to 1-2 sentences. 
-5. Output ONLY the finalized Markdown content (starting with themes and bullets).
+5. LINKING: You MUST preserve the Markdown Links `[Domain Name](URL)` from `<new_summaries>` exactly as they are. This is very important. 
+6. Output ONLY the finalized Markdown content (starting with themes and bullets).
 """
 
 # ── PROMPT 3: STAGE 3 (ANALYST REPORT) ──────────
@@ -96,11 +97,10 @@ Produce EXACTLY these sections based on the knowledge base texts.
 ---
 
 CRITICAL FORMATTING RULES:
-1. You MUST use **Harvard referencing style** for citations.
-2. At the end of EVERY bullet point that uses facts from the Knowledge Base, put the citation on a NEW, ITALICIZED line under the bullet point.
-   Example:
-   * Universal Robots has just announced a new 4D sensor cobot variant.
-   *Source: The Robot Report*
+1. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL provided in the Knowledge Base exactly as an inline link. 
+2. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. 
+   Example format:
+   * Universal Robots has just announced a new 4D sensor cobot variant ([therobotreport.com](https://www.therobotreport.com/link...)).
 
 Draft the report brilliantly. Be decisive.
 """

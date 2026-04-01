@@ -301,7 +301,9 @@ def main():
             # Text serialization for Stage 1
             raw_text_payload = ""
             for idx, a in enumerate(articles_raw):
-                raw_text_payload += f"[{idx+1}] CATEGORY: {a['category']} | SOURCE: {a['source_domain']}\n"
+                raw_text_payload += f"[{idx+1}] CATEGORY: {a['category']}\n"
+                raw_text_payload += f"SOURCE_NAME: {a['source_domain']}\n"
+                raw_text_payload += f"URL: {a['link']}\n"
                 raw_text_payload += f"TITLE: {a['title']}\nSUMMARY: {a['summary']}\n---\n"
                 
             # [STAGE 1: HAIPU SUMMARIZER]
