@@ -42,7 +42,7 @@ You are a highly analytical AI Data Engine. Your task is to process incoming raw
 INSTRUCTIONS:
 1. Group the provided items logically by sub-themes (e.g., "Hardware Innovations", "Corporate Funding & M&A", "Regional Deployments").
 2. Write extreme, compressed bullet points capturing ONLY the hard facts, numbers, and entities. Remove all fluff.
-3. Every single point MUST end with the short domain name hyperlinked to the original article URL. Example: `([The Robot Report](https://therobotreport.com/...))`.
+3. Every single point MUST end with the short domain name AND the article date hyperlinked to the original article URL. Example: `([The Robot Report - Mar 30](https://therobotreport.com/...))`.
 4. Do not include greetings or conclusions. Just return standard Markdown.
 """
 
@@ -97,10 +97,10 @@ Produce EXACTLY these sections based on the knowledge base texts.
 ---
 
 CRITICAL FORMATTING RULES:
-1. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL provided in the Knowledge Base exactly as an inline link. 
+1. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL (including the domain and date) provided in the Knowledge Base exactly as an inline link. 
 2. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. 
    Example format:
-   * Universal Robots has just announced a new 4D sensor cobot variant ([therobotreport.com](https://www.therobotreport.com/link...)).
+   * Universal Robots has just announced a new 4D sensor cobot variant ([therobotreport.com - Mar 30](https://www.therobotreport.com/link...)).
 
 Draft the report brilliantly. Be decisive.
 """

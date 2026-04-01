@@ -158,6 +158,7 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None, previous_lin
                 title = entry.get("title", "")
                 summary_raw = entry.get("summary", "")
                 summary_clean = clean_html(summary_raw)
+                published_raw = entry.get("published", entry.get("pubDate", "Recent"))
                 
                 # Dynamic Categorization based on keywords
                 matched_title, cat_title = filter_by_keywords(title, keyword_list)
@@ -172,7 +173,8 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None, previous_lin
                         "title": title,
                         "link": link,
                         "summary": summary_clean,
-                        "source_domain": domain
+                        "source_domain": domain,
+                        "published": published_raw
                     })
         except Exception as e:
             st.error(f"Lỗi nguồn {url}: {e}")
@@ -303,6 +305,7 @@ def main():
             for idx, a in enumerate(articles_raw):
                 raw_text_payload += f"[{idx+1}] CATEGORY: {a['category']}\n"
                 raw_text_payload += f"SOURCE_NAME: {a['source_domain']}\n"
+                raw_text_payload += f"DATE: {a.get('published', 'Recent')}\n"
                 raw_text_payload += f"URL: {a['link']}\n"
                 raw_text_payload += f"TITLE: {a['title']}\nSUMMARY: {a['summary']}\n---\n"
                 
