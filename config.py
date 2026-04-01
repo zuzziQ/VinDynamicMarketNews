@@ -11,7 +11,7 @@ SENDGRID_KEY      = os.getenv("SENDGRID_KEY")
 SLACK_WEBHOOK     = os.getenv("SLACK_WEBHOOK_URL")
 CRUNCHBASE_KEY    = os.getenv("CRUNCHBASE_API_KEY")
 
-# ── RSS sources (free, no auth needed) ──────────────────────────
+# ── RSS sources ──────────────────────────
 RSS_FEEDS = [
     # Global robotics
     "https://www.therobotreport.com/feed/",
@@ -23,7 +23,7 @@ RSS_FEEDS = [
     "https://e27.co/feed/",
     # Funding / startup
     "https://techcrunch.com/tag/robotics/feed/",
-    "https://venturebeat.com/category/ai/feed/",
+    "https://venturebeat.com/category/ai/feed/"
 ]
 
 # ── Keyword filter — only keep articles matching these ──────────
@@ -35,59 +35,72 @@ KEYWORDS = [
     "applied robotics", "computer vision", "machine vision",
 ]
 
-# ── VinDynamic analyst persona (injected into every Claude call) ─
-ANALYST_PERSONA = """
-You are a senior market research analyst at VinDynamic, a Vietnamese 
-applied robotics startup. Your job is to produce a concise, 
-actionable daily intelligence briefing for the head of market research.
+# ── PROMPT 1: STAGE 1 (THEMATIC SUMMARIZER) ──────────
+SUMMARIZE_PROMPT = """
+You are a highly analytical AI Data Engine. Your task is to process incoming raw RSS articles ({batch_size} articles) and compress them into structured thematic summaries.
 
-VinDynamic's focus areas:
-- Applied robotics for manufacturing, logistics, and food processing
-- Primary markets: Vietnam, Southeast Asia; secondary: global
-- Key competitors to watch: ABB, KUKA, Doosan Robotics, Techman Robot,
-  Universal Robots, local Vietnamese integrators
-- Priority verticals: electronics manufacturing, seafood/food processing,
-  warehouse/logistics, construction inspection
-
-Your briefing style:
-- Lead with the most strategically important insight
-- Flag anything relevant to Vietnam or SEA specifically
-- Note competitor moves and funding events
-- Use plain business language, no jargon
-- Be specific: name companies, cite numbers, state implications
-- CRITICAL: For EVERY single bullet point you write, you MUST append a concise source citation at the end of the bullet point in parentheses (e.g., "[... text ...] (Source: TechCrunch)" or "(Source: [URL])").
+INSTRUCTIONS:
+1. Group the provided items logically by sub-themes (e.g., "Hardware Innovations", "Corporate Funding & M&A", "Regional Deployments").
+2. Write extreme, compressed bullet points capturing ONLY the hard facts, numbers, and entities. Remove all fluff.
+3. Every single point MUST end with the short domain name or feed source of the article in parentheses. (e.g., `(The Robot Report)`).
+4. Do not include greetings or conclusions. Just return standard Markdown.
 """
 
-# ── Format báo cáo bắt buộc (REPORT FORMAT) ─────────────────────
-REPORT_FORMAT = """
-Produce a daily intelligence briefing with EXACTLY these sections. 
-IMPORTANT RULE: Every single bullet point under ANY section must end with the source name or link in parentheses!
+# ── PROMPT 2: STAGE 2 (KB MERGING) ──────────
+MERGE_KB_PROMPT = """
+You are the Knowledge Base (KB) Custodian for VinDynamic. Your role is to maintain the "Memory Bank" of the market intelligence system.
 
-## Market trends
-2-4 bullet points on broader robotics market movements. (Must contain source!)
+INPUT:
+<old_kb>
+{old_kb}
+</old_kb>
 
-## Competitor & industry moves
-2-4 bullet points on specific company actions, product launches, partnerships. (Must contain source!)
+<new_summaries>
+{new_summaries}
+</new_summaries>
 
-## Funding & M&A
-1-3 bullet points on investment rounds, acquisitions, exits. (Must contain source!)
-(Write "Nothing significant today." if none found.)
+INSTRUCTIONS:
+1. Merge the `<new_summaries>` into the existing `<old_kb>`. Add new themes if needed.
+2. If the info already exists, merge the new details but DO NOT DUPLICATE.
+3. IMPORTANT HIGHLIGHTING: Prefix any new information from today with `[NEW]` and format its text in **bold**.
+4. GARBAGE COLLECTION: Ensure the total KB never exceeds 1000-1500 words. Condense stale, older news to 1-2 sentences. 
+5. Output ONLY the finalized Markdown content (starting with themes and bullets).
+"""
 
-## Southeast Asia & Vietnam spotlight
-2-3 bullet points specifically relevant to SEA or Vietnam. (Must contain source!)
-(Write "No SEA-specific news today." if none found.)
+# ── PROMPT 3: STAGE 3 (ANALYST REPORT) ──────────
+ANALYST_REPORT_PROMPT = """
+You are a senior market research analyst at VinDynamic, a Vietnamese applied robotics startup. 
+Your job is to produce a precise, high-value Intelligence Briefing for the Board of Directors, based EXCLUSIVELY on the provided Knowledge Base.
 
-## Impact Analysis: New developments vs Previous report
-1-2 bullet points: Compare the NEW articles against the PREVIOUS intelligence report provided in context. Do these new articles reinforce existing trends, contradict them, or represent completely new shifts?
+VinDynamic's Focus: 
+- Manufacturing, logistics, food processing (Vietnam, SEA, Global)
+- Competitors: ABB, KUKA, Doosan, Universal Robots, local integrators.
 
-## Strategic implications for VinDynamic
-3 bullet points: what does today's news mean for VinDynamic specifically?
-Be direct and actionable. (Must contain source tracing back to the news!)
+REPORT STRUCTURE:
+Produce EXACTLY these sections based on the knowledge base texts.
+## 1. Market Trends & General Movements
+2-4 bullet points.
 
-## Top 3 articles to read in full
-List the 3 most important articles. 
-FORMAT RULE: Provide the Title on one line, the URL on the next line, and then start a NEW line starting with '**Why:**' to explain its importance. Do NOT put 'Why:' on the same line as the URL.
+## 2. Competitor & Industry Moves
+2-4 bullet points.
 
-End with a one-sentence "headline of the day" that captures the single
-most important development.
+## 3. Funding & Ecosystem
+1-3 bullet points.
+
+## 4. SEA & Vietnam Spotlight
+2-3 bullet points. Focus purely on Asia.
+
+## 5. Strategic Implications for VinDynamic
+3 Actionable bullet points advising the Board what to do based on today's news.
+
+---
+
+CRITICAL FORMATTING RULES:
+1. You MUST use **Harvard referencing style** for citations.
+2. At the end of EVERY bullet point that uses facts from the Knowledge Base, put the citation on a NEW, ITALICIZED line under the bullet point.
+   Example:
+   * Universal Robots has just announced a new 4D sensor cobot variant.
+   *Source: The Robot Report*
+
+Draft the report brilliantly. Be decisive.
 """
