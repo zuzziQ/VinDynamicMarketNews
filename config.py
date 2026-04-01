@@ -42,7 +42,8 @@ You are a highly analytical AI Data Engine. Your task is to process incoming raw
 INSTRUCTIONS:
 1. Group the provided items logically by sub-themes (e.g., "Hardware Innovations", "Corporate Funding & M&A", "Regional Deployments").
 2. Write extreme, compressed bullet points capturing ONLY the hard facts, numbers, and entities. Remove all fluff.
-3. Every single point MUST end with the short domain name AND the article date hyperlinked to the original article URL. Example: `([The Robot Report - Mar 30](https://therobotreport.com/...))`.
+3. CRITICAL: Every single bullet point MUST end with the short domain name AND the provided article DATE hyperlinked to the original article URL. 
+   Format EXACTLY like this example: `([The Robot Report - Mar 30](https://therobotreport.com/...))`
 4. Do not include greetings or conclusions. Just return standard Markdown.
 """
 
@@ -65,7 +66,7 @@ INSTRUCTIONS:
 3. IMPORTANT HIGHLIGHTING: Prefix any new information from today with `[NEW]` and format its text in **bold**.
 4. CHRONOLOGICAL SORTING: Under every theme, you MUST sort the bullet points chronologically from NEWEST to OLDEST based on the article date. Put today's/newest news at the top.
 5. GARBAGE COLLECTION: Ensure the total KB never exceeds 1000-1500 words. Condense stale, older news to 1-2 sentences. 
-6. LINKING: You MUST preserve the Markdown Links `[Domain Name](URL)` from `<new_summaries>` exactly as they are. This is very important. 
+6. LINKING & DATES: You MUST preserve the exact Markdown Links AND Dates `[Domain Name - Date](URL)` from `<new_summaries>`. DO NOT remove the dates! This is very important. 
 7. Output ONLY the finalized Markdown content (starting with themes and bullets).
 """
 
@@ -99,8 +100,8 @@ Produce EXACTLY these sections based on the knowledge base texts.
 
 CRITICAL FORMATTING RULES:
 1. CHRONOLOGICAL ORDER: Within each section, sort the bullet points from NEWEST to OLDEST based on the dates provided.
-2. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL (including the domain and date) provided in the Knowledge Base exactly as an inline link. 
-3. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. 
+2. AT THE END of ANY bullet point that uses facts from the Knowledge Base, you MUST cite the original Markdown URL provided in the Knowledge Base exactly as an inline link. 
+3. The citation MUST be placed at the END of the bullet point, in parentheses or brackets. It MUST include BOTH the Domain and the Date.
    Example format:
    * Universal Robots has just announced a new 4D sensor cobot variant ([therobotreport.com - Mar 30](https://www.therobotreport.com/link...)).
 

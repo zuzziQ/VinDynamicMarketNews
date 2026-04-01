@@ -158,7 +158,17 @@ def fetch_rss_feeds(rss_urls, keyword_list, progress_callback=None, previous_lin
                 title = entry.get("title", "")
                 summary_raw = entry.get("summary", "")
                 summary_clean = clean_html(summary_raw)
-                published_raw = entry.get("published", entry.get("pubDate", "Recent"))
+                
+                # Format Date efficiently
+                published_raw = "Recent"
+                parsed_time = entry.get("published_parsed") or entry.get("updated_parsed")
+                if parsed_time:
+                    try:
+                        published_raw = time.strftime("%b %d", parsed_time)
+                    except:
+                        pass
+                elif entry.get("published"):
+                    published_raw = entry.get("published")[:10]
                 
                 # Dynamic Categorization based on keywords
                 matched_title, cat_title = filter_by_keywords(title, keyword_list)
